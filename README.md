@@ -14,19 +14,6 @@
 
 Paterm is a lightweight open-source terminal-first development environment built on Tauri 2 + Rust and React 19. A native PTY backend with a WebGL renderer, plus a code editor, file explorer, and a web preview pane built in. About 7-8 MB on disk. No telemetry. No account.
 
-## Screenshots
-
-<table>
-  <tr>
-    <td colspan="2" align="center"><img src="docs/terminal.png" alt="Terminal" style="border-radius: 4px;" /><br/><sub>Block-based WebGL terminal with editor-like input panel</sub></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center"><img src="docs/web-preview.png" alt="Web preview" style="margin-top: 12px;"/><br/><sub>Web preview of local dev servers</sub></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center"><img src="docs/themes.png" alt="Themes and background image" style="margin-top: 12px;"/><br/><sub>Custom themes, presets, and background images</sub></td>
-  </tr>
-</table>
 
 ## Features
 

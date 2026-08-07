@@ -2,36 +2,12 @@
   <img src="public/logo.png" width="144" height="144" alt="Paterm" />
   <h1>Paterm</h1>
 
-  <p><strong>Lightweight terminal-first dev workspace.</strong></p>
-  <p>
-    <a href="https://paterm.app">Website</a>
-    ·
-    <a href="https://paterm.app/docs">Docs</a>
-    ·
-    <a href="https://github.com/crynta/Paterm-website">Website's source code</a>
-  </p>
+  <p><strong>Lightweight terminal</strong></p>
 
-  <p>
-    <img src="https://img.shields.io/github/v/release/crynta/paterm?label=version&color=blue" alt="version" />
-    <img src="https://img.shields.io/github/downloads/crynta/paterm/total?label=downloads&color=blue" alt="downloads" />
-    <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="platform" />
-    <a href="https://discord.gg/tyveTUyEp7"><img src="https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
-    <a href="https://www.youtube.com/@crynta"><img src="https://img.shields.io/badge/Youtube-FF0000?logo=youtube&logoColor=white" alt="YouTube" /></a>
-  </p>
 </div>
 
 <p align="center">
   <a href="docs/readme/README.zh-CN.md">简体中文</a> |
-  <a href="docs/readme/README.es.md">Español</a> |
-  <a href="docs/readme/README.de.md">Deutsch</a> |
-  <a href="docs/readme/README.fr.md">Français</a> |
-  <a href="docs/readme/README.ja.md">日本語</a> |
-  <a href="docs/readme/README.ko.md">한국어</a> |
-  <a href="docs/readme/README.pt-BR.md">Português</a> |
-  <a href="docs/readme/README.pl.md">Polski</a> |
-  <a href="docs/readme/README.ru.md">Русский</a> |
-  <a href="docs/readme/README.id.md">Bahasa Indonesia</a> |
-  <a href="docs/readme/README.hi.md">हिन्दी</a>
 </p>
 
 ---
@@ -93,7 +69,7 @@ Paterm is a lightweight open-source terminal-first development environment built
 
 ## Install
 
-Latest installers are on the [Releases](https://github.com/crynta/paterm/releases/latest) page. Paterm auto-updates from there.
+Latest installers are on the [Releases](https://github.com/xxpac/paterm/releases/latest) page.
 
 ### Windows notes
 

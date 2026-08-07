@@ -1,0 +1,256 @@
+use std::io::Read;
+use std::process::{Command, Stdio};
+use std::sync::{mpsc, Arc};
+use std::thread;
+use std::time::Duration;
+
+use serde::Serialize;
+use shared_child::SharedChild;
+
+#[cfg(windows)]
+use crate::modules::workspace::validate_wsl_distro_name;
+use crate::modules::workspace::{authorize_spawn_cwd, WorkspaceEnv, WorkspaceRegistry};
+
+const DEFAULT_TIMEOUT_SECS: u64 = 30;
+const MAX_TIMEOUT_SECS: u64 = 300;
+const MAX_OUTPUT_BYTES: usize = 256 * 1024;
+
+#[derive(Serialize)]
+pub struct CommandOutput {
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: Option<i32>,
+    pub timed_out: bool,
+    pub truncated: bool,
+}
+
+/// Runs a one-shot command via the user's login shell. Output is capped and
+/// the process is force-killed on timeout. We deliberately do NOT pipe into
+/// the user's interactive PTY — that would fight their input. Used by editor
+/// format-on-save to invoke external formatters.
+#[tauri::command]
+pub async fn shell_run_command(
+    command: String,
+    cwd: Option<String>,
+    timeout_secs: Option<u64>,
+    workspace: Option<WorkspaceEnv>,
+    registry: tauri::State<'_, WorkspaceRegistry>,
+) -> Result<CommandOutput, String> {
+    let trimmed = command.trim().to_string();
+    if trimmed.is_empty() {
+        return Err("empty command".into());
+    }
+
+    let workspace = WorkspaceEnv::from_option(workspace);
+    authorize_spawn_cwd(&registry, cwd.as_deref(), &workspace)?;
+    let cwd_path = cwd
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+
+    let dur = Duration::from_secs(
+        timeout_secs
+            .unwrap_or(DEFAULT_TIMEOUT_SECS)
+            .clamp(1, MAX_TIMEOUT_SECS),
+    );
+
+    // The blocking spawn + wait runs on a worker thread so the Tauri async
+    // runtime stays unblocked.
+    let (tx, rx) = mpsc::channel::<Result<CommandOutput, String>>();
+    thread::spawn(move || {
+        let _ = tx.send(run_blocking(trimmed, cwd_path, workspace, dur));
+    });
+
+    rx.recv().map_err(|e| e.to_string())?
+}
+
+fn run_blocking(
+    command: String,
+    cwd: Option<String>,
+    workspace: WorkspaceEnv,
+    dur: Duration,
+) -> Result<CommandOutput, String> {
+    let mut cmd = build_oneshot_command(&command, &workspace, cwd.as_deref())?;
+    if let (WorkspaceEnv::Local, Some(dir)) = (&workspace, cwd) {
+        cmd.current_dir(dir);
+    }
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    crate::modules::proc::hide_console(&mut cmd);
+
+    let child = Arc::new(SharedChild::spawn(&mut cmd).map_err(|e| {
+        log::warn!("shell_run_command spawn failed: {e}");
+        e.to_string()
+    })?);
+    let mut stdout_pipe = child.take_stdout().ok_or_else(|| {
+        let _ = child.kill();
+        "no stdout pipe".to_string()
+    })?;
+    let mut stderr_pipe = child.take_stderr().ok_or_else(|| {
+        let _ = child.kill();
+        "no stderr pipe".to_string()
+    })?;
+
+    let stdout_handle = thread::spawn(move || drain(&mut stdout_pipe));
+    let stderr_handle = thread::spawn(move || drain(&mut stderr_pipe));
+
+    let (tx, rx) = mpsc::channel();
+    let waiter = Arc::clone(&child);
+    thread::spawn(move || {
+        let _ = tx.send(waiter.wait());
+    });
+
+    let (exit_code, timed_out) = match rx.recv_timeout(dur) {
+        Ok(Ok(status)) => (status.code(), false),
+        Ok(Err(e)) => return Err(e.to_string()),
+        Err(mpsc::RecvTimeoutError::Timeout) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            (None, true)
+        }
+        Err(mpsc::RecvTimeoutError::Disconnected) => {
+            return Err("shell wait thread disconnected".into());
+        }
+    };
+
+    let (stdout_bytes, stdout_truncated) = stdout_handle.join().unwrap_or((Vec::new(), false));
+    let (stderr_bytes, stderr_truncated) = stderr_handle.join().unwrap_or((Vec::new(), false));
+
+    Ok(CommandOutput {
+        stdout: String::from_utf8_lossy(&stdout_bytes).into_owned(),
+        stderr: String::from_utf8_lossy(&stderr_bytes).into_owned(),
+        exit_code,
+        timed_out,
+        truncated: stdout_truncated || stderr_truncated,
+    })
+}
+
+pub(crate) fn build_oneshot_command(
+    command: &str,
+    #[cfg_attr(not(windows), allow(unused_variables))] workspace: &WorkspaceEnv,
+    #[cfg_attr(not(windows), allow(unused_variables))] cwd: Option<&str>,
+) -> Result<Command, String> {
+    #[cfg(windows)]
+    if let WorkspaceEnv::Wsl { distro } = workspace {
+        validate_wsl_distro_name(distro)?;
+        let mut cmd = Command::new("wsl.exe");
+        cmd.arg("-d").arg(distro);
+        if let Some(cwd) = cwd.filter(|s| !s.is_empty()) {
+            cmd.arg("--cd").arg(cwd);
+        }
+        cmd.arg("--exec").arg("sh").arg("-lc").arg(command);
+        return Ok(cmd);
+    }
+    #[cfg(unix)]
+    {
+        let mut cmd = Command::new("/bin/sh");
+        cmd.arg("-c").arg(command);
+        for (key, value) in crate::modules::workspace::appimage_env_overrides() {
+            match value {
+                Some(v) => {
+                    cmd.env(key, v);
+                }
+                None => {
+                    cmd.env_remove(key);
+                }
+            }
+        }
+        Ok(cmd)
+    }
+    #[cfg(windows)]
+    {
+        let shell = crate::modules::pty::shell_init::windows_shell_path();
+        let mut cmd = Command::new(&shell);
+        let is_cmd = shell
+            .file_name()
+            .and_then(|s| s.to_str())
+            .map(|s| s.eq_ignore_ascii_case("cmd.exe"))
+            .unwrap_or(false);
+        if is_cmd {
+            cmd.arg("/C").arg(command);
+        } else {
+            cmd.arg("-NoProfile").arg("-Command").arg(command);
+        }
+        Ok(cmd)
+    }
+}
+
+fn drain<R: Read>(reader: &mut R) -> (Vec<u8>, bool) {
+    let mut out = Vec::new();
+    let mut buf = [0u8; 8192];
+    let mut truncated = false;
+    loop {
+        match reader.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => {
+                if out.len() >= MAX_OUTPUT_BYTES {
+                    truncated = true;
+                    continue;
+                }
+                let take = (MAX_OUTPUT_BYTES - out.len()).min(n);
+                out.extend_from_slice(&buf[..take]);
+                if take < n {
+                    truncated = true;
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    (out, truncated)
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    fn run(cmd: &str, timeout_secs: u64) -> CommandOutput {
+        run_blocking(
+            cmd.into(),
+            None,
+            WorkspaceEnv::Local,
+            Duration::from_secs(timeout_secs),
+        )
+        .expect("run")
+    }
+
+    #[test]
+    fn run_blocking_captures_stdout_and_zero_exit() {
+        let out = run("printf 'hello\\n'", 5);
+        assert_eq!(out.stdout, "hello\n");
+        assert_eq!(out.exit_code, Some(0));
+        assert!(!out.timed_out);
+        assert!(!out.truncated);
+    }
+
+    #[test]
+    fn run_blocking_captures_stderr_and_nonzero_exit() {
+        let out = run("printf 'oops\\n' >&2; exit 3", 5);
+        assert!(out.stderr.contains("oops"));
+        assert_eq!(out.exit_code, Some(3));
+    }
+
+    #[test]
+    fn run_blocking_times_out_long_running_command() {
+        let out = run("sleep 10", 1);
+        assert!(out.timed_out);
+        assert_eq!(out.exit_code, None);
+    }
+
+    #[test]
+    fn run_blocking_truncates_huge_output() {
+        let big = MAX_OUTPUT_BYTES + 4096;
+        let out = run(&format!("head -c {big} /dev/zero"), 10);
+        assert!(out.truncated);
+        assert!(out.stdout.len() <= MAX_OUTPUT_BYTES);
+    }
+
+    #[test]
+    fn build_oneshot_command_uses_sh_minus_c_on_unix() {
+        let cmd = build_oneshot_command("echo hi", &WorkspaceEnv::Local, None).unwrap();
+        assert_eq!(cmd.get_program(), "/bin/sh");
+        let args: Vec<_> = cmd.get_args().collect();
+        assert_eq!(args, vec!["-c", "echo hi"]);
+    }
+}

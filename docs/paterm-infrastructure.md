@@ -16,7 +16,7 @@ just do not exist yet.
 | --- | --- | --- |
 | GitHub repo | `xxpac/paterm` | `README.md` + `docs/readme/*.md` (badges, releases, flake install), `src/modules/updater/useUpdater.ts` (`GITHUB_LATEST_RELEASE`), `src-tauri/tauri.conf.json` (updater endpoint), `nix/package.nix`, `.github/workflows/*.yml`, `.github/ISSUE_TEMPLATE/*`, `ROADMAP.md`, `SECURITY.md`, `PATERM.md` |
 | Website | `https://paterm.app` (+ `paterm.app/docs`) | `README.md` + `docs/readme/*.md`, `nix/package.nix` (`homepage`), `SECURITY.md` |
-| Website source repo | `crynta/Paterm-website` | `README.md` + `docs/readme/*.md` |
+| Website source repo | `xxpac/Paterm-website` | `README.md` + `docs/readme/*.md` |
 | Security contact email | `security@paterm.app` | `SECURITY.md` |
 | AUR package | `paterm-bin` | `src/modules/updater/UpdaterDialog.tsx`, `README.md` + `docs/readme/*.md` |
 
@@ -44,8 +44,8 @@ install resolve.
   Settings → About). The OS treats this as a distinct application: fresh app-data
   directory, autostart entry, window-state, etc.
 - `publisher` / `copyright` in `src-tauri/tauri.conf.json` and `authors` in
-  `src-tauri/Cargo.toml` still say **"Crynta"**. The identifier org segment is
-  `pac`, so decide whether the publisher should change to match.
+  `src-tauri/Cargo.toml` now say **"xxpac"**. The identifier org segment is
+  `pac`.
 
 ## 4. Local data reset (expected)
 

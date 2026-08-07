@@ -91,34 +91,14 @@ jobs:
             fs.writeFileSync(toml, s);
           ' "$VERSION"
 
-      - name: Write Apple API key to disk
-        if: startsWith(matrix.platform, 'macos')
-        shell: bash
-        env:
-          KEY_CONTENT: ${{ secrets.APPLE_API_KEY_PATH }}
-        run: |
-          mkdir -p "$HOME/private_keys"
-          printf '%s' "$KEY_CONTENT" > "$HOME/private_keys/AuthKey.p8"
-          echo "APPLE_API_KEY_PATH=$HOME/private_keys/AuthKey.p8" >> "$GITHUB_ENV"
-
       - id: tauri
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Paterm ${{ github.ref_name }}"
-          releaseBody: "See the assets to download and install. Auto-update is built in."
+          releaseBody: "See the assets to download and install."
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
@@ -130,16 +110,12 @@ jobs:
       # so the stale copy wins and EGL fails with EGL_BAD_PARAMETER. libgdk-3
       # hard-links these three, so removing them only redirects resolution to
       # the host copy, which every GTK-capable system has. They are on the
-      # AppImage excludelist for this exact reason. The re-signed AppImage and
-      # its .sig are re-uploaded here; the updater manifest is patched in the
-      # patch-appimage-updater job after all matrix legs finish, so a parallel
-      # macOS/Windows upload cannot clobber the combined latest.json.
-      - name: Fix AppImage wayland libs and re-sign
+      # AppImage excludelist for this exact reason. The repacked AppImage is
+      # re-uploaded here to replace tauri-action's original upload.
+      - name: Fix AppImage wayland libs
         if: matrix.platform == 'ubuntu-22.04' && startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
 
@@ -184,18 +160,13 @@ jobs:
 
           cp "$WORK/$BASENAME" "$APPIMAGE"
 
-          rm -f "$APPIMAGE.sig"
-          pnpm tauri signer sign "$APPIMAGE"
-
           TAG="${GITHUB_REF_NAME}"
-          gh release upload "$TAG" "$APPIMAGE" "$APPIMAGE.sig" \
+          gh release upload "$TAG" "$APPIMAGE" \
             --clobber --repo "$GITHUB_REPOSITORY"
 
       # Upload the standalone (portable) Windows exe as a release asset. It runs
-      # without installation and uses the system WebView2 runtime. It is not an
-      # updater artifact, so it carries no minisign .sig and is absent from
-      # latest.json. tauri-action already uploaded the NSIS/MSI installers with
-      # their updater signatures intact.
+      # without installation and uses the system WebView2 runtime. tauri-action
+      # already uploaded the NSIS/MSI installers.
       - name: Upload portable Windows exe
         if: matrix.platform == 'windows-latest' && startsWith(github.ref, 'refs/tags/')
         shell: pwsh
@@ -209,48 +180,3 @@ jobs:
           $portableName = "Paterm_${version}_x64-portable.exe"
           Copy-Item $portable.FullName $portableName -Force
           gh release upload $env:GITHUB_REF_NAME $portableName --clobber --repo $env:GITHUB_REPOSITORY
-
-  # Patch the re-signed AppImage signature into the combined updater manifest.
-  # The AppImage is repacked (wayland fix) and re-signed after tauri-action wrote
-  # its original signature, so its latest.json entry must be refreshed. Runs once,
-  # after every matrix leg has merged its platform into latest.json. Windows and
-  # macOS entries keep tauri-action's original signatures and are left untouched.
-  patch-updater-manifest:
-    needs: publish-tauri
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Patch latest.json with the re-signed AppImage signature
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
-            --pattern "latest.json" \
-            --pattern "*_amd64.AppImage.sig" --clobber
-
-          APP_SIG=$(cat ./*_amd64.AppImage.sig)
-
-          # Re-signing the AppImage re-uploads it with --clobber, which recreates
-          # the asset under a new id, so the asset-id API url tauri-action baked
-          # into latest.json goes stale. Rewrite it to the stable tag+filename
-          # download url; the filename comes from the .sig name.
-          APP_FILE=$(basename "$(ls ./*_amd64.AppImage.sig)" .sig)
-          DL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
-
-          jq -e 'has("platforms") and (.platforms | has("linux-x86_64"))' latest.json >/dev/null \
-            || { echo "latest.json missing the linux-x86_64 platform key"; exit 1; }
-
-          jq --arg app "$APP_SIG" --arg appurl "$DL/$APP_FILE" '
-            .platforms["linux-x86_64"] += {signature: $app, url: $appurl}
-            | (if .platforms["linux-x86_64-appimage"]
-               then .platforms["linux-x86_64-appimage"] += {signature: $app, url: $appurl}
-               else . end)
-          ' latest.json > latest.json.tmp
-          mv latest.json.tmp latest.json
-
-          gh release upload "$TAG" latest.json --clobber --repo "$GITHUB_REPOSITORY"

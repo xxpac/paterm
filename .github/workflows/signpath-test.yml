@@ -9,7 +9,7 @@ concurrency:
 
 jobs:
   test-sign-windows:
-    if: github.repository == 'crynta/paterm'
+    if: github.event.repository.fork == false
     runs-on: windows-latest
     permissions:
       contents: read

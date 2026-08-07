@@ -11,8 +11,8 @@
   </p>
 
   <p>
-    <img src="https://img.shields.io/github/v/release/crynta/paterm?label=version&color=blue" alt="versión" />
-    <img src="https://img.shields.io/github/downloads/crynta/paterm/total?label=downloads&color=blue" alt="descargas" />
+    <img src="https://img.shields.io/github/v/release/xxpac/paterm?label=version&color=blue" alt="versión" />
+    <img src="https://img.shields.io/github/downloads/xxpac/paterm/total?label=downloads&color=blue" alt="descargas" />
     <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="plataforma" />
     <a href="https://discord.gg/tyveTUyEp7"><img src="https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
     <a href="https://www.youtube.com/@crynta"><img src="https://img.shields.io/badge/Youtube-FF0000?logo=youtube&logoColor=white" alt="YouTube" /></a>
@@ -92,7 +92,7 @@ Paterm es un entorno de desarrollo ligero, de código abierto y centrado en la t
 
 ## Instalación
 
-Los instaladores más recientes están en la página de [Releases](https://github.com/crynta/paterm/releases/latest). Paterm se actualiza automáticamente desde allí.
+Los instaladores más recientes están en la página de [Releases](https://github.com/xxpac/paterm/releases/latest). Paterm se actualiza automáticamente desde allí.
 
 ### Notas para Windows
 
@@ -102,7 +102,7 @@ Los instaladores más recientes están en la página de [Releases](https://githu
 ### Notas para Linux
 
 - **Arch / AUR:** `yay -S paterm-bin` (o `paru`, etc.). Sigue la versión más reciente.
-- **NixOS / Nix:** usa el flake oficial: `nix profile install github:crynta/paterm` en sistemas que no sean NixOS, o importa el flake y añade `inputs.paterm.packages.${pkgs.system}.paterm` a `environment.systemPackages` en NixOS. También está disponible `nixosModules.paterm` para una configuración más sencilla.
+- **NixOS / Nix:** usa el flake oficial: `nix profile install github:xxpac/paterm` en sistemas que no sean NixOS, o importa el flake y añade `inputs.paterm.packages.${pkgs.system}.paterm` a `environment.systemPackages` en NixOS. También está disponible `nixosModules.paterm` para una configuración más sencilla.
 - **AppImage:** requiere FUSE. Sin FUSE: `./Paterm_*.AppImage --appimage-extract-and-run`. Si hay problemas de renderizado en Wayland, prueba `WEBKIT_DISABLE_DMABUF_RENDERER=1`. Los paquetes `.deb` / `.rpm` enlazan con la pila GTK del sistema y suelen funcionar con mayor fluidez.
 
 ## Compilar desde el código fuente

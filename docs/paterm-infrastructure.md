@@ -14,7 +14,7 @@ just do not exist yet.
 
 | Resource | Value referenced in code | Where |
 | --- | --- | --- |
-| GitHub repo | `crynta/paterm` | `README.md` + `docs/readme/*.md` (badges, releases, flake install), `src/modules/updater/useUpdater.ts` (`GITHUB_LATEST_RELEASE`), `src-tauri/tauri.conf.json` (updater endpoint), `nix/package.nix`, `.github/workflows/*.yml`, `.github/ISSUE_TEMPLATE/*`, `ROADMAP.md`, `SECURITY.md`, `PATERM.md` |
+| GitHub repo | `xxpac/paterm` | `README.md` + `docs/readme/*.md` (badges, releases, flake install), `src/modules/updater/useUpdater.ts` (`GITHUB_LATEST_RELEASE`), `src-tauri/tauri.conf.json` (updater endpoint), `nix/package.nix`, `.github/workflows/*.yml`, `.github/ISSUE_TEMPLATE/*`, `ROADMAP.md`, `SECURITY.md`, `PATERM.md` |
 | Website | `https://paterm.app` (+ `paterm.app/docs`) | `README.md` + `docs/readme/*.md`, `nix/package.nix` (`homepage`), `SECURITY.md` |
 | Website source repo | `crynta/Paterm-website` | `README.md` + `docs/readme/*.md` |
 | Security contact email | `security@paterm.app` | `SECURITY.md` |
@@ -29,9 +29,9 @@ install resolve.
   in `src/modules/updater/UpdaterDialog.tsx`) because no releases exist yet under
   the repo.
 - The manual **"Check for updates"** button in Settings → About queries the GitHub
-  API endpoint for `crynta/paterm`; it will not find releases until one is
+  API endpoint for `xxpac/paterm`; it will not find releases until one is
   published.
-- To re-enable: publish a signed release to `crynta/paterm`, confirm the endpoints
+- To re-enable: publish a signed release to `xxpac/paterm`, confirm the endpoints
   in `src-tauri/tauri.conf.json` (`plugins.updater.endpoints`) and
   `src/modules/updater/useUpdater.ts` (`GITHUB_LATEST_RELEASE`), then restore
   `useUpdater()` (drop `autoCheck: false`).
@@ -85,7 +85,7 @@ Artifact names follow the product name and binary:
 - `Paterm_<ver>_amd64.deb`, `Paterm-<ver>-1.x86_64.rpm`, `Paterm_x64.app.tar.gz`,
   `Paterm_aarch64.app.tar.gz`, `Paterm_*.AppImage`, Windows `paterm.exe`, Linux
   `usr/bin/paterm`.
-- `nix/package.nix` fetches these names from `crynta/paterm`. They resolve once a
+- `nix/package.nix` fetches these names from `xxpac/paterm`. They resolve once a
   release is cut under that repo.
 - Windows artifacts (`Paterm_<ver>_x64-setup.exe`, `Paterm_<ver>_x64_en-US.msi`,
   and the `Paterm_<ver>_x64-portable.exe`) ship **unsigned** — no

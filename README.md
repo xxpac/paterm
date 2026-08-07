@@ -66,7 +66,7 @@ Latest installers are on the [Releases](https://github.com/xxpac/paterm/releases
 ### Linux notes
 
 - **Arch / AUR:** `yay -S paterm-bin` (or `paru`, etc.). Tracks the latest release.
-- **NixOS / Nix**: use the official flake - `nix profile install github:crynta/paterm` (non-NixOS), or import the flake and add `inputs.paterm.packages.${pkgs.system}.paterm` to `environment.systemPackages` (NixOS). The `nixosModules.paterm` output is also available for a simpler setup.
+- **NixOS / Nix**: use the official flake - `nix profile install github:xxpac/paterm` (non-NixOS), or import the flake and add `inputs.paterm.packages.${pkgs.system}.paterm` to `environment.systemPackages` (NixOS). The `nixosModules.paterm` output is also available for a simpler setup.
 - **AppImage:** needs FUSE. Without it: `./Paterm_*.AppImage --appimage-extract-and-run`. On Wayland with rendering glitches, try `WEBKIT_DISABLE_DMABUF_RENDERER=1`. Otherwise the `.deb` / `.rpm` packages link against the system GTK stack and tend to be smoother.
 
 ## Build from source

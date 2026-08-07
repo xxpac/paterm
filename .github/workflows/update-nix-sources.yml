@@ -18,10 +18,10 @@ jobs:
 
     steps:
       # On a `release` event the default checkout lands on the tag (detached
-      # HEAD); create-pull-request needs a branch base, so check out main.
+      # HEAD); create-pull-request needs a branch base, so check out master.
       - uses: actions/checkout@v7
         with:
-          ref: main
+          ref: master
 
       - name: Normalize tag
         id: tag
@@ -42,7 +42,7 @@ jobs:
           VERSION: ${{ steps.tag.outputs.version }}
         run: |
           gh release download "$TAG" \
-            --repo crynta/paterm \
+            --repo "$GITHUB_REPOSITORY" \
             --pattern "Paterm_${VERSION}_amd64.deb" \
             --pattern "Paterm_x64.app.tar.gz" \
             --pattern "Paterm_aarch64.app.tar.gz"
@@ -79,7 +79,7 @@ jobs:
           commit-message: "update nix sources to ${{ steps.hashes.outputs.version }}"
           title: "nix: update sources to ${{ steps.hashes.outputs.version }}"
           body: 'Automated update of `nix/sources.json` for release ${{ steps.tag.outputs.tag }}.'
-          base: main
+          base: master
           # Only commit the manifest; the downloaded release assets sit in the
           # work tree and must not be committed.
           add-paths: nix/sources.json

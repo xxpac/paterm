@@ -7,7 +7,7 @@ import { IS_LINUX } from "@/lib/platform";
 const LAST_CHECK_KEY = "paterm:updater:last-check";
 const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 const GITHUB_LATEST_RELEASE =
-  "https://api.github.com/repos/crynta/paterm/releases/latest";
+  "https://api.github.com/repos/xxpac/paterm/releases/latest";
 
 export interface ManualUpdateInfo {
   version: string;

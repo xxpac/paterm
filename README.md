@@ -42,11 +42,6 @@ Paterm is a lightweight open-source terminal-first development environment built
 - Fuzzy search, keyboard navigation, inline rename, context actions
 - Live updates when files change on disk
 
-### Web preview
-
-- Auto-detects local dev servers and opens them in a preview tab
-- External URL preview via a native child webview
-
 ### Themes and customization
 
 - Custom themes built in-app, switch between bundled presets and your own

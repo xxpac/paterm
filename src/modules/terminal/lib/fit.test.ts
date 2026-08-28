@@ -144,6 +144,22 @@ describe("fitTerminal", () => {
     expect(term._core._renderService.clear).not.toHaveBeenCalled();
   });
 
+  it("refits to the cell of whichever renderer is active", () => {
+    stubComputedStyle();
+    // The DOM renderer keeps the measured 8.4 px cell; WebGL floors the char to
+    // whole device pixels and paints 8 px, so the same box holds more columns.
+    const term = fakeTerminal({ width: 800, height: 400, scrollbarWidth: 0 });
+
+    fitTerminal(term as unknown as Terminal);
+    expect(term.resize).toHaveBeenLastCalledWith(95, 23);
+
+    term.cols = 95;
+    term._core._renderService.dimensions.css.cell.width = 8;
+    fitTerminal(term as unknown as Terminal);
+
+    expect(term.resize).toHaveBeenLastCalledWith(100, 23);
+  });
+
   it("does not touch the renderer when the grid already fits", () => {
     stubComputedStyle();
     const term = fakeTerminal({

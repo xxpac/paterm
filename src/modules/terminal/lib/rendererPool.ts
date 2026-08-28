@@ -10,7 +10,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { type FontWeight, Terminal } from "@xterm/xterm";
 import { shouldCursorBlink } from "./cursorBlink";
-import { fitTerminal } from "./fit";
+import { cellSize, fitTerminal } from "./fit";
 import {
   readTerminalClipboard,
   writeTerminalClipboard,
@@ -106,9 +106,30 @@ function setWindowActive(active: boolean): void {
   }
 }
 
+// A new dpr re-rounds the char cell (see refitForRendererSwap) without changing
+// any CSS box, so the ResizeObserver never fires: dragging the window to a
+// display with different scaling would otherwise strand dead columns.
+let dprQuery: MediaQueryList | null = null;
+
+function watchDpr(): void {
+  if (typeof window === "undefined" || !window.matchMedia) return;
+  dprQuery?.removeEventListener("change", onDprChange);
+  dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+  dprQuery.addEventListener("change", onDprChange);
+}
+
+function onDprChange(): void {
+  watchDpr();
+  // Defer so xterm's own dpr handler has remeasured the cell first.
+  requestAnimationFrame(() => {
+    for (const slot of slots) refitForRendererSwap(slot);
+  });
+}
+
 export function configureRendererPool(a: SlotAdapter): void {
   adapter = a;
   bindWindowActivityListeners();
+  watchDpr();
 }
 
 export function forEachSlot(fn: (slot: Slot) => void): void {
@@ -126,23 +147,33 @@ export type PoolSlotStat = {
   parked: boolean;
   cols: number;
   rows: number;
+  cellWidth: number;
+  // Pixels the grid leaves unused on the right. Anything past one cell means
+  // the grid was fitted against a cell the active renderer is not painting.
+  deadPx: number;
   bufferLines: number;
   webgl: boolean;
   canvases: number;
 };
 
 export function poolSlotStats(): PoolSlotStat[] {
-  return slots.map((s) => ({
-    id: s.id,
-    leafId: s.currentLeafId,
-    retainedLeafId: s.retainedLeafId,
-    parked: s.parked,
-    cols: s.term.cols,
-    rows: s.term.rows,
-    bufferLines: s.term.buffer.active.length,
-    webgl: !!s.webglAddon,
-    canvases: s.webglCanvases.length,
-  }));
+  return slots.map((s) => {
+    const cell = cellSize(s.term);
+    const hostWidth = s.host.parentElement?.clientWidth ?? 0;
+    return {
+      id: s.id,
+      leafId: s.currentLeafId,
+      retainedLeafId: s.retainedLeafId,
+      parked: s.parked,
+      cols: s.term.cols,
+      rows: s.term.rows,
+      cellWidth: cell.width,
+      deadPx: Math.round(hostWidth - s.term.cols * cell.width),
+      bufferLines: s.term.buffer.active.length,
+      webgl: !!s.webglAddon,
+      canvases: s.webglCanvases.length,
+    };
+  });
 }
 
 // Bracketed paste via xterm, so an app that enabled it (e.g. a TUI editor)
@@ -821,6 +852,7 @@ function attachWebgl(slot: Slot): void {
     for (const c of after) if (!before.has(c)) added.push(c);
     slot.webglAddon = webgl;
     slot.webglCanvases = added;
+    refitForRendererSwap(slot);
   } catch (e) {
     console.warn("[paterm-webgl] unavailable:", e);
   }
@@ -892,8 +924,30 @@ export function applyWebglPreference(enabled: boolean): void {
     } else if (slot.webglAddon) {
       cancelWebglReap(slot);
       disposeSlotWebgl(slot);
+      refitForRendererSwap(slot);
     }
   }
+}
+
+function fitAndSyncPty(slot: Slot): void {
+  fitTerminal(slot.term);
+  if (slot.term.cols === slot.lastCols && slot.term.rows === slot.lastRows)
+    return;
+  slot.lastCols = slot.term.cols;
+  slot.lastRows = slot.term.rows;
+  if (slot.currentLeafId === null) return;
+  adapter
+    ?.resolveLeaf(slot.currentLeafId)
+    ?.resizePty(slot.lastCols, slot.lastRows);
+}
+
+// WebGL floors the char to whole device pixels while the DOM renderer keeps it
+// fractional, so a grid fitted under one renderer leaves dead columns (or
+// overflows) under the other. bindSlot fits while WebGL is detached, so without
+// this every fresh pane wraps short of its right edge.
+function refitForRendererSwap(slot: Slot): void {
+  if (slot.parked || slot.currentLeafId === null) return;
+  fitAndSyncPty(slot);
 }
 
 // Parked and retained slots can't be measured (display:none); poison lastW
@@ -903,12 +957,7 @@ function refitSlot(slot: Slot): void {
     slot.lastW = -1;
     return;
   }
-  fitTerminal(slot.term);
-  slot.lastCols = slot.term.cols;
-  slot.lastRows = slot.term.rows;
-  adapter
-    ?.resolveLeaf(slot.currentLeafId)
-    ?.resizePty(slot.term.cols, slot.term.rows);
+  fitAndSyncPty(slot);
 }
 
 export function applyLetterSpacing(spacing: number): void {
@@ -1016,21 +1065,13 @@ export function refreshLeafSlot(leafId: number): void {
   if (usePreferencesStore.getState().terminalWebglEnabled && !slot.webglAddon) {
     attachWebgl(slot);
   }
-  // The observer skips parked slots; catch up on container resizes here.
+  // The observer skips parked slots, and a reaped WebGL context hands the grid
+  // back to the DOM renderer's cell rounding, so refit on every unpark.
   const container = slot.host.parentElement;
-  if (
-    container &&
-    (container.clientWidth !== slot.lastW ||
-      container.clientHeight !== slot.lastH)
-  ) {
+  if (container) {
     slot.lastW = container.clientWidth;
     slot.lastH = container.clientHeight;
-    fitTerminal(slot.term);
-    if (slot.term.cols !== slot.lastCols || slot.term.rows !== slot.lastRows) {
-      slot.lastCols = slot.term.cols;
-      slot.lastRows = slot.term.rows;
-      adapter?.resolveLeaf(leafId)?.resizePty(slot.lastCols, slot.lastRows);
-    }
+    fitAndSyncPty(slot);
   }
   try {
     slot.term.refresh(0, slot.term.rows - 1);

@@ -35,6 +35,13 @@ function renderService(term: Terminal): RenderService | null {
   );
 }
 
+// Cell of the renderer currently painting, which is what the grid is measured
+// against. DOM and WebGL disagree, so this is only meaningful right now.
+export function cellSize(term: Terminal): { width: number; height: number } {
+  const cell = renderService(term)?.dimensions?.css?.cell;
+  return { width: cell?.width ?? 0, height: cell?.height ?? 0 };
+}
+
 // xterm overlays its scrollbar on the grid, so a fit reserves that lane or the
 // last columns sit under it. Paterm hides the scrollbar (globals.css), so
 // measuring beats @xterm/addon-fit's blind 14 px: the lane costs ~2 columns.

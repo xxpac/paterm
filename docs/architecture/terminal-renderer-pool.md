@@ -54,7 +54,9 @@ WebGL addons are created when a slot becomes visible and reaped after a grace pe
 
 `src/modules/terminal/lib/fit.ts` replaces `@xterm/addon-fit`. The upstream addon always subtracts an overlay-scrollbar lane (`overviewRuler?.width || 14`) from the available width, which cost roughly two columns per pane because Paterm hides that scrollbar in `globals.css`. `fitTerminal` measures the scrollbar element instead, so a hidden bar reserves nothing, and it declines to resize when the host is unmeasurable rather than collapsing the grid to the 2x1 minimum.
 
-Every fit is followed by a debounced `resizePty` so the PTY winsize matches the grid.
+A fit is only correct against the cell of the renderer that will paint it. The WebGL renderer floors the char to whole device pixels (`Math.floor(charWidth * dpr)`) while the DOM renderer keeps it fractional, so at dpr 1 a 8.4 px measured char becomes an 8 px painted cell. `bindSlot` fits while WebGL is detached, so the grid must be refitted when the renderer swaps in, otherwise every fresh pane wraps several columns short of its right edge. `refitForRendererSwap` covers WebGL attach, WebGL dispose (`terminalWebglEnabled` off, which widens the cell and would overflow instead), unpark, and dpr changes from dragging the window to a display with different scaling. None of those change a CSS box, so the `ResizeObserver` never fires for them.
+
+Every fit is followed by `resizePty` (debounced on the observer path) so the PTY winsize matches the grid. `poolSlotStats()` reports `cellWidth` and `deadPx` per slot; `deadPx` above one cell means a grid is fitted against a cell nobody is painting.
 
 ## Invariants
 
@@ -63,6 +65,7 @@ Every fit is followed by a debounced `resizePty` so the PTY winsize matches the 
 - A hidden busy leaf keeps its live grid parked with `display:none`.
 - An idle hidden leaf releases its slot but the buffer continues parsing bytes.
 - The DormantRing only buffers bytes for leaves without any slot.
+- A grid is always fitted against the active renderer's cell; a renderer or dpr change refits.
 
 ## See also
 

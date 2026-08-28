@@ -4,13 +4,13 @@ import { usePreferencesStore } from "@/modules/settings/preferences";
 import type { TerminalCursorStyle } from "@/modules/settings/store";
 import { buildTerminalTheme } from "@/styles/terminalTheme";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { type FontWeight, Terminal } from "@xterm/xterm";
 import { shouldCursorBlink } from "./cursorBlink";
+import { fitTerminal } from "./fit";
 import {
   readTerminalClipboard,
   writeTerminalClipboard,
@@ -45,7 +45,6 @@ export type LeafBridge = {
 export type Slot = {
   readonly id: number;
   readonly term: Terminal;
-  readonly fitAddon: FitAddon;
   readonly searchAddon: SearchAddon;
   readonly serializeAddon: SerializeAddon;
   readonly host: HTMLDivElement;
@@ -205,10 +204,8 @@ export function applyBackgroundActive(active: boolean): void {
 
 function createSlot(): Slot {
   const term = new Terminal(termOptions());
-  const fitAddon = new FitAddon();
   const searchAddon = new SearchAddon();
   const serializeAddon = new SerializeAddon();
-  term.loadAddon(fitAddon);
   term.loadAddon(searchAddon);
   term.loadAddon(serializeAddon);
   term.loadAddon(
@@ -224,7 +221,6 @@ function createSlot(): Slot {
   const slot: Slot = {
     id: slots.length,
     term,
-    fitAddon,
     searchAddon,
     serializeAddon,
     host,
@@ -512,7 +508,7 @@ function bindSlot(slot: Slot, p: AcquireParams): void {
   }
 
   setupResizeObserver(slot, p);
-  slot.fitAddon.fit();
+  fitTerminal(slot.term);
   slot.lastCols = slot.term.cols;
   slot.lastRows = slot.term.rows;
   slot.lastW = p.container.clientWidth;
@@ -582,7 +578,7 @@ function rewireSlot(slot: Slot, p: AcquireParams): void {
     p.container.appendChild(slot.host);
   }
   setupResizeObserver(slot, p);
-  slot.fitAddon.fit();
+  fitTerminal(slot.term);
   slot.lastW = p.container.clientWidth;
   slot.lastH = p.container.clientHeight;
   if (slot.term.cols !== p.cols || slot.term.rows !== p.rows) {
@@ -622,7 +618,7 @@ function setupResizeObserver(slot: Slot, p: AcquireParams): void {
       if (w === slot.lastW && h === slot.lastH) return;
       slot.lastW = w;
       slot.lastH = h;
-      slot.fitAddon.fit();
+      fitTerminal(slot.term);
       if (slot.ptyTimer) clearTimeout(slot.ptyTimer);
       slot.ptyTimer = setTimeout(flushPty, PTY_RESIZE_DEBOUNCE_MS);
     }, FIT_DEBOUNCE_MS);
@@ -907,7 +903,7 @@ function refitSlot(slot: Slot): void {
     slot.lastW = -1;
     return;
   }
-  slot.fitAddon.fit();
+  fitTerminal(slot.term);
   slot.lastCols = slot.term.cols;
   slot.lastRows = slot.term.rows;
   adapter
@@ -1029,7 +1025,7 @@ export function refreshLeafSlot(leafId: number): void {
   ) {
     slot.lastW = container.clientWidth;
     slot.lastH = container.clientHeight;
-    slot.fitAddon.fit();
+    fitTerminal(slot.term);
     if (slot.term.cols !== slot.lastCols || slot.term.rows !== slot.lastRows) {
       slot.lastCols = slot.term.cols;
       slot.lastRows = slot.term.rows;

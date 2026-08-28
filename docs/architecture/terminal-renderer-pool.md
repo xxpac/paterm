@@ -10,7 +10,7 @@ The pool lives in `src/modules/terminal/lib/rendererPool.ts`.
 
 ## Slot lifecycle
 
-- `POOL_MAX_SIZE` is 5 (`rendererPool.ts:22`). Each slot owns one xterm `Terminal`, `FitAddon`, `SearchAddon`, `SerializeAddon`, and optionally a `WebglAddon`.
+- `POOL_MAX_SIZE` is 5 (`rendererPool.ts:22`). Each slot owns one xterm `Terminal`, `SearchAddon`, `SerializeAddon`, and optionally a `WebglAddon`.
 - A slot is created on demand and assigned to a leaf on bind.
 - `releaseSlot` detaches a slot from a leaf. If the leaf is idle, the slot is parked with `display:none` so xterm stops rendering but keeps parsing PTY bytes.
 - After a grace period, idle slots may be reaped to keep the pool size down.
@@ -49,6 +49,12 @@ If only a snapshot exists, `bindSlot` clears the terminal, resizes, writes the s
 ## WebGL lifecycle
 
 WebGL addons are created when a slot becomes visible and reaped after a grace period when parked. The addon recovers from context loss on sleep/wake or GPU reset.
+
+## Fitting the grid
+
+`src/modules/terminal/lib/fit.ts` replaces `@xterm/addon-fit`. The upstream addon always subtracts an overlay-scrollbar lane (`overviewRuler?.width || 14`) from the available width, which cost roughly two columns per pane because Paterm hides that scrollbar in `globals.css`. `fitTerminal` measures the scrollbar element instead, so a hidden bar reserves nothing, and it declines to resize when the host is unmeasurable rather than collapsing the grid to the 2x1 minimum.
+
+Every fit is followed by a debounced `resizePty` so the PTY winsize matches the grid.
 
 ## Invariants
 
